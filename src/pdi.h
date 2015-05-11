@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// --- Initialisation (including pushing the device into PDI mode) ---
+bool pdi_init (uint8_t clk_pin, uint8_t data_pin, uint16_t delay_us);
+
+// --- Low-level API -------------------------------------------------
 typedef enum { PDI_OUT, PDI_IN } pdi_dir_t;
 
 typedef struct pdi_transfer
@@ -22,8 +26,6 @@ typedef struct pdi_sequence
 typedef void (*pdi_sequence_done_fn_t) (bool success, pdi_sequence_t *seq);
 
 
-bool pdi_init (uint8_t clk_pin, uint8_t data_pin);
-
 // returns false if a job is already in progress
 // null ptrs or zero-length transfers NOT supported
 bool pdi_set_sequence (pdi_sequence_t *sequence, pdi_sequence_done_fn_t fn);
@@ -34,5 +36,11 @@ bool pdi_break (void);
 void pdi_run (void);
 
 void pdi_stop (void);
+
+
+// --- High-level API - be mindful of clock gaps - no printf'ing! -----
+bool pdi_send (const char *buf, uint32_t len);
+bool pdi_recv (char *buf, uint32_t len);
+bool pdi_sendrecv (const char *cmd, uint32_t cmdlen, char *buf, uint32_t rxlen);
 
 #endif
