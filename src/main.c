@@ -1,10 +1,9 @@
 #include "pdi.h"
+#include "nvm.h"
 #include <sys/signal.h>
 #include <stdio.h>
-
-#define STCS 0xC0
-#define LDCS 0x80
-#define KEY 0xE0
+#include <stdlib.h>
+#include <time.h>
 
 void on_sig (int sig)
 {
@@ -12,6 +11,28 @@ void on_sig (int sig)
   pdi_stop ();
 }
 
+void dump (uint32_t addr, char *p, uint32_t len)
+{
+  uint32_t at = (addr & ~15u);
+  printf ("%08x: ", at);
+  for (unsigned sp = 0; sp < (addr % 16); ++sp)
+    printf ("   ");
+  for (int i = (addr % 16) + 1; len; ++i, --len, ++p)
+  {
+    printf ("%02x ", *p);
+    if (i == 8)
+      putchar (' ');
+    if (i == 16 && len != 1)
+    {
+      i = 0;
+      at += 16;
+      printf ("\n%08x: ", at);
+    }
+  }
+  printf ("\n");
+}
+
+int foo = 0;
 
 int main (int argc, char *argv[])
 {
@@ -20,6 +41,9 @@ int main (int argc, char *argv[])
   signal (SIGINT, on_sig);
   signal (SIGTERM, on_sig);
   signal (SIGQUIT, on_sig);
+
+  srand (time (0));
+  int r = rand ();
 
   if (!pdi_init (11, 9, 0)) // sclk, miso, 0us
     return 1;
@@ -30,17 +54,37 @@ int main (int argc, char *argv[])
     KEY, 0xFF, 0x88, 0xD8, 0xCD, 0x45, 0xAB, 0x89, 0x12, // enable NVM
   };
 
-  if (!pdi_send (init, sizeof (init)))
+  if (!pdi_send (init, sizeof (init)) || !nvm_wait_enabled ())
     return 2;
 
-  const char read_status = LDCS | 0x00;
-  char status = 0x00;
-  while (status == 0x00)
+#if 0
+  if (!nvm_chip_erase ())
   {
-    if (!pdi_sendrecv (&read_status, 1, &status, 1))
-      return 4;
+    printf ("failed to perform chip erase\n");
+    return 6;
   }
-  printf ("Read status reg: 0x%02x, NVM controller %s\n", status, (status & 0x02) ? "ENABLED" : "disabled");
+#endif
+
+  uint32_t addr = 0x800200;
+
+  #if 1
+  static char wpage[512];
+  for (unsigned i = 0x0; i < sizeof (wpage); ++i)
+    wpage[i] = i + r;
+  if (!nvm_rewrite_page (addr, wpage, sizeof (wpage)))
+  {
+    printf ("failed to rewrite nvm, foo is %d\n", foo);
+  }
+#endif
+
+  static char page[512] = { 0, };
+  if (!nvm_read (addr, page, sizeof (page)))
+  {
+    printf ("failed to read nvm, foo is %d\n", foo);
+    return 5;
+  }
+
+  dump (addr, page, sizeof (page));
 
   return 0;
 }

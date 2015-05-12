@@ -25,6 +25,7 @@ static struct
 
   // delay
   uint64_t delay_us;
+  uint64_t timeout_ticks;
 
   // job
   pdi_sequence_done_fn_t done_fn;
@@ -36,6 +37,8 @@ static struct
   uint32_t cur_offs;
   byte_xfer_t byte;
 
+  uint64_t ticks;
+
   bool switch_dir;
 } pdi;
 
@@ -43,6 +46,8 @@ static struct
 
 static void load_next_byte ()
 {
+  pdi.ticks = 0; // things are progressing, don't time out just yet...
+
   // if in input mode, store last received byte
   if (pdi.cur->xfer->dir == PDI_IN)
     pdi.cur->xfer->buf[pdi.cur_offs] = pdi.byte.val;
@@ -135,7 +140,10 @@ static void clock_in (void)
     bool bit = (bcm2835_gpio_lev (pdi.data) > 0);
     switch (pdi.byte.pos)
     {
-      case XF_ST: pdi.byte.pos += !bit; break; // expect data next if low bit
+      case XF_ST:
+        pdi.byte.pos += !bit; // expect data next if low bit
+        pdi.ticks += bit; // if still idle, count timeout timer
+        break;
       case XF_0: case XF_1: case XF_2: case XF_3:
       case XF_4: case XF_5: case XF_6: case XF_7:
         pdi.byte.val |= (bit << pdi.byte.pos); ++pdi.byte.pos; break;
@@ -171,6 +179,7 @@ bool pdi_init (uint8_t clk_pin, uint8_t data_pin, uint16_t delay_us)
   pdi.clk = clk_pin;
   pdi.data = data_pin;
   pdi.delay_us = delay_us;
+  pdi.timeout_ticks = 200000; // enough?
 
   struct sched_param sp;
   memset (&sp, 0, sizeof(sp));
@@ -208,6 +217,7 @@ bool pdi_set_sequence (pdi_sequence_t *seq, pdi_sequence_done_fn_t fn)
     pdi.byte.val = (uint8_t)seq->xfer->buf[0];
 
   pdi.switch_dir = true; // ensure we do the right thing next
+  pdi.ticks = 0;
 
   return true;
 }
@@ -215,7 +225,7 @@ bool pdi_set_sequence (pdi_sequence_t *seq, pdi_sequence_done_fn_t fn)
 
 void pdi_run (void)
 {
-  while (!pdi.stop && pdi.seq)
+  while (!pdi.stop && pdi.seq && pdi.ticks < pdi.timeout_ticks)
   {
     if (pdi.switch_dir)
     {
@@ -244,7 +254,7 @@ void pdi_run (void)
       report_done ();
   }
 
-  if (pdi.stop && pdi.done_fn)
+  if ((pdi.stop || pdi.ticks >= pdi.timeout_ticks) && pdi.done_fn)
   {
     pdi.cur_failed = true;
     report_done ();

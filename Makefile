@@ -4,9 +4,10 @@ default: pdi
 SRCS=$(addprefix src/, \
   main.c \
   pdi.c \
+  nvm.c \
 )
 
-CFLAGS+=-O2 -g -std=c99 -Wall -Wextra -Isrc
+CFLAGS+=-O3 -g -std=c99 -Wall -Wextra -Isrc
 LDFLAGS+=-lbcm2835
 
 pdi: $(SRCS)
