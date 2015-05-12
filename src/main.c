@@ -16,7 +16,11 @@ void dump (uint32_t addr, char *p, uint32_t len)
   uint32_t at = (addr & ~15u);
   printf ("%08x: ", at);
   for (unsigned sp = 0; sp < (addr % 16); ++sp)
+  {
+    if (sp == 8)
+      putchar (' ');
     printf ("   ");
+  }
   for (int i = (addr % 16) + 1; len; ++i, --len, ++p)
   {
     printf ("%02x ", *p);
