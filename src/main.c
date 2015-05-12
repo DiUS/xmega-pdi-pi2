@@ -32,7 +32,6 @@ void dump (uint32_t addr, char *p, uint32_t len)
   printf ("\n");
 }
 
-int foo = 0;
 
 int main (int argc, char *argv[])
 {
@@ -45,17 +44,12 @@ int main (int argc, char *argv[])
   srand (time (0));
   int r = rand ();
 
-  if (!pdi_init (11, 9, 0)) // sclk, miso, 0us
+  int ret = 0;
+
+  if (!pdi_init (11, 9, 0) || // sclk, miso, 0us
+      !pdi_open () ||
+      !nvm_wait_enabled ())
     return 1;
-
-  static const char init[] = {
-    STCS | 0x02, 0x07, // 2 idle bits
-    STCS | 0x01, 0x59, // hold device in reset
-    KEY, 0xFF, 0x88, 0xD8, 0xCD, 0x45, 0xAB, 0x89, 0x12, // enable NVM
-  };
-
-  if (!pdi_send (init, sizeof (init)) || !nvm_wait_enabled ())
-    return 2;
 
 #if 0
   if (!nvm_chip_erase ())
@@ -67,24 +61,28 @@ int main (int argc, char *argv[])
 
   uint32_t addr = 0x800200;
 
-  #if 1
   static char wpage[512];
   for (unsigned i = 0x0; i < sizeof (wpage); ++i)
     wpage[i] = i + r;
   if (!nvm_rewrite_page (addr, wpage, sizeof (wpage)))
   {
-    printf ("failed to rewrite nvm, foo is %d\n", foo);
+    ret = 2;
+    goto out;
   }
-#endif
 
   static char page[512] = { 0, };
   if (!nvm_read (addr, page, sizeof (page)))
   {
-    printf ("failed to read nvm, foo is %d\n", foo);
-    return 5;
+    ret = 3;
+    goto out;
   }
+
+  printf ("ok\n");
+
+out:
+  pdi_close ();
 
   dump (addr, page, sizeof (page));
 
-  return 0;
+  return ret;
 }

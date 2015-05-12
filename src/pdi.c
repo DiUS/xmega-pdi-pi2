@@ -192,12 +192,56 @@ bool pdi_init (uint8_t clk_pin, uint8_t data_pin, uint16_t delay_us)
   bcm2835_gpio_fsel (pdi.clk, BCM2835_GPIO_FSEL_OUTP);
   bcm2835_gpio_fsel (pdi.data, BCM2835_GPIO_FSEL_OUTP);
 
+  return true;
+}
+
+
+bool pdi_open (void)
+{
   // put device into PDI mode
   bcm2835_gpio_set (pdi.data);
   bcm2835_delayMicroseconds (1); // xmega256a3 says 90-1000ns reset pulse width
   blind_clock (16); // next, 16 pdi_clk cycles within 100us
 
-  return true;
+  static const char init[] = {
+    STCS | PDI_REG_CONTROL, 0x07, // 2 idle bits
+    STCS | PDI_REG_RESET, 0x59, // hold device in reset
+    KEY, 0xFF, 0x88, 0xD8, 0xCD, 0x45, 0xAB, 0x89, 0x12, // enable NVM
+  };
+
+  return pdi_send (init, sizeof (init));
+}
+
+
+void pdi_close (void)
+{
+  static const char deinit[] = {
+    STCS | PDI_REG_RESET, 0x00,
+    LDCS | PDI_REG_RESET
+  };
+  char status;
+  do {
+    if (!pdi_sendrecv (deinit, sizeof (deinit), &status, 1))
+      break; // oh well...
+  } while (status != 0x00);
+
+  // drop out of PDI mode
+  bcm2835_gpio_clr (pdi.data);
+  bcm2835_gpio_clr (pdi.clk);
+  bcm2835_delayMicroseconds (300); // 100us documented, observed to be ~200us
+
+  // give it a good reset pulse before we relinquish the gpio pins
+  bcm2835_gpio_set (pdi.clk);
+  bcm2835_delayMicroseconds (1);
+  bcm2835_gpio_clr (pdi.clk);
+  bcm2835_delayMicroseconds (1);
+
+  // release gpio pins
+  // TODO: restore to whatever state they were before we yoinked them!
+  bcm2835_gpio_fsel (pdi.clk, BCM2835_GPIO_FSEL_INPT);
+  bcm2835_gpio_fsel (pdi.data, BCM2835_GPIO_FSEL_INPT);
+
+  // should we drop scheduling priority too?
 }
 
 

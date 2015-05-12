@@ -9,7 +9,13 @@
 #define PDI_REG_CONTROL 0x02
 
 // --- Initialisation (including pushing the device into PDI mode) ---
+
 bool pdi_init (uint8_t clk_pin, uint8_t data_pin, uint16_t delay_us);
+
+bool pdi_open (void);
+
+void pdi_close (void);
+
 
 // --- Low-level API -------------------------------------------------
 
@@ -72,6 +78,7 @@ void pdi_stop (void);
 
 
 // --- High-level API - be mindful of clock gaps - no printf'ing! -----
+
 bool pdi_send (const char *buf, uint32_t len);
 bool pdi_recv (char *buf, uint32_t len);
 bool pdi_sendrecv (const char *cmd, uint32_t cmdlen, char *buf, uint32_t rxlen);
