@@ -2,6 +2,7 @@
 #include "pdi.h"
 
 #define PAGE_SIZE 512
+#define WAIT_ATTEMPTS 2000
 
 enum {
   NVM_NOP                           = 0x00,
@@ -105,11 +106,13 @@ static inline bool nvm_controller_busy_wait (void)
 
   const char status_cmd = LD | xPTR | SZ_1;
   char status = 0;
+  int max_attempts = WAIT_ATTEMPTS;
   do
   {
     if (!pdi_sendrecv (&status_cmd, 1, &status, 1))
       return false;
-    // TODO: support timeout
+    if (--max_attempts == 0)
+      return false;
   } while (status & NVM_STATUS_BUSY_bm);
 
   return true;
@@ -122,9 +125,11 @@ bool nvm_wait_enabled (void)
 {
   const char read_status = LDCS | PDI_REG_STATUS;
   char status = 0x00;
+  int max_attempts = WAIT_ATTEMPTS;
   while (!(status & PDI_NVMEN_bm))
   {
-    // TODO: support timeout
+    if (--max_attempts == 0)
+      return false;
     if (!pdi_sendrecv (&read_status, 1, &status, 1))
       return false;
   }
@@ -173,8 +178,7 @@ bool nvm_rewrite_page (uint32_t addr, const char *buf, uint16_t len)
     return false;
 
   // I would guess only the lower PAGE_SIZE part of the address is relevant
-  // while writing to the page buffer, but the application note is very
-  // unclear
+  // while writing to the page buffer, but the application note is very unclear
   uint16_t rpt = len -1;
   char buf_cmds[] = {
     ST | PTR | SZ_4,

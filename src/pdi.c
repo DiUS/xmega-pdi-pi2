@@ -182,7 +182,7 @@ bool pdi_init (uint8_t clk_pin, uint8_t data_pin, uint16_t delay_us)
   pdi.timeout_ticks = 200000; // enough?
 
   struct sched_param sp;
-  memset (&sp, 0, sizeof(sp));
+  memset (&sp, 0, sizeof (sp));
   sp.sched_priority = sched_get_priority_max (SCHED_FIFO);
   sched_setscheduler (0, SCHED_FIFO, &sp);
   mlockall (MCL_CURRENT | MCL_FUTURE);
@@ -236,12 +236,16 @@ void pdi_close (void)
   bcm2835_gpio_clr (pdi.clk);
   bcm2835_delayMicroseconds (1);
 
-  // release gpio pins
-  // TODO: restore to whatever state they were before we yoinked them!
+  // release gpio pins; libbcm2835 currently does not provide a way to read
+  // the initial fsel state, so we can't properly restore the state here
   bcm2835_gpio_fsel (pdi.clk, BCM2835_GPIO_FSEL_INPT);
   bcm2835_gpio_fsel (pdi.data, BCM2835_GPIO_FSEL_INPT);
 
-  // should we drop scheduling priority too?
+  struct sched_param sp;
+  memset (&sp, 0, sizeof (sp));
+  sp.sched_priority = 0;
+  sched_setscheduler (0, SCHED_OTHER, &sp);
+  munlockall ();
 }
 
 

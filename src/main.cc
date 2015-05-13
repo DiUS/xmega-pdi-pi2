@@ -95,7 +95,7 @@ int main (int argc, char *argv[])
 
   bool quiet = false;
   uint32_t flash_base = 0x800000;
-  uint8_t  clk_pin = 11, data_pin = 9; // sclk, miso
+  uint8_t  clk_pin = 24, data_pin = 21; // j8.18, j8.40
   uint32_t pdi_delay_us = 0;
 
   bool dump_mem = false;
